@@ -1,74 +1,63 @@
-const fs = require('fs');
-const path = require('path');
-const filePath = path.join(__dirname, '../data/documents.json');
+const Document = require('../models/document');
 
-const getDocuments = (req, res) => {
-  fs.readFile(filePath, (err, data) => {
-    if (err) return res.status(500).json({ message: err.message });
-    const documents = JSON.parse(data);
+const getDocuments = async (req, res) => {
+  try {
+    const documents = await Document.find();
     res.status(200).json(documents);
-  });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching documents' });
+  }
 };
 
-const createDocument = (req, res) => {
-  const { title } = req.body;
-  const file = req.file;
+const uploadDocument = async (req, res) => {
+  try {
+    const { title, description } = req.body;
+    const file = req.file.path;
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) return res.status(500).json({ message: err.message });
-    const documents = JSON.parse(data);
-    const newDocument = {
-      id: Date.now().toString(),
+    const newDocument = new Document({
       title,
-      filePath: file.path,
-      fileName: file.originalname,
-    };
-    documents.push(newDocument);
-
-    fs.writeFile(filePath, JSON.stringify(documents, null, 2), (err) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(201).json(newDocument);
+      description,
+      file,
     });
-  });
+
+    const savedDocument = await newDocument.save();
+    res.status(201).json(savedDocument);
+  } catch (error) {
+    res.status(500).json({ message: 'Error uploading document' });
+  }
 };
 
-const updateDocument = (req, res) => {
-  const { id } = req.params;
-  const { title } = req.body;
-  const file = req.file;
+const updateDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    const file = req.file ? req.file.path : undefined;
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) return res.status(500).json({ message: err.message });
-    const documents = JSON.parse(data);
-    const documentIndex = documents.findIndex((doc) => doc.id === id);
-    if (documentIndex === -1) return res.status(404).json({ message: 'Document not found' });
+    const updatedDocument = await Document.findByIdAndUpdate(
+      id,
+      { title, description, ...(file && { file }) },
+      { new: true }
+    );
 
-    documents[documentIndex].title = title;
-    if (file) {
-      documents[documentIndex].filePath = file.path;
-      documents[documentIndex].fileName = file.originalname;
-    }
-
-    fs.writeFile(filePath, JSON.stringify(documents, null, 2), (err) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(200).json(documents[documentIndex]);
-    });
-  });
+    res.status(200).json(updatedDocument);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating document' });
+  }
 };
 
-const deleteDocument = (req, res) => {
-  const { id } = req.params;
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) return res.status(500).json({ message: err.message });
-    const documents = JSON.parse(data);
-    const updatedDocuments = documents.filter((doc) => doc.id !== id);
-
-    fs.writeFile(filePath, JSON.stringify(updatedDocuments, null, 2), (err) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(200).json({ message: 'Document deleted successfully' });
-    });
-  });
+const deleteDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Document.findByIdAndDelete(id);
+    res.status(200).json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting document' });
+  }
 };
 
-module.exports = { getDocuments, createDocument, updateDocument, deleteDocument };
+module.exports = {
+  getDocuments,
+  uploadDocument,
+  updateDocument,
+  deleteDocument,
+};
